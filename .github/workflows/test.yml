@@ -1,0 +1,32 @@
+name: Plugin compatibility
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: librenms/librenms
+          ref: d6da65b36d02c9b3ce5a63ccbc1a683ecc71100b
+          path: upstream
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, gd, mbstring, mysqli, pdo_mysql, pdo_sqlite, sockets, zip, xml, snmp
+          coverage: none
+          tools: composer:v2
+      - name: Install upstream dependencies without application boot
+        working-directory: upstream
+        run: composer install --no-interaction --prefer-dist --no-scripts --no-progress
+      - name: PHP syntax
+        run: find GoAccess tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Real Hook and security checks
+        run: php tests/run.php "$GITHUB_WORKSPACE/upstream"

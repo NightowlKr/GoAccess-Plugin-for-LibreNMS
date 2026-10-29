@@ -1,0 +1,11 @@
+# Generated reports can contain private traffic data.
+*.html
+*.htm
+*.log
+.env
+.env.*
+/vendor/
+/.phpunit.cache/
+/.idea/
+/.vscode/
+*.zip
