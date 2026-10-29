@@ -59,7 +59,32 @@ final class Report
             . "img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; "
             . "object-src 'none'; base-uri 'none'; form-action 'none'";
 
+        // srcdoc inherits its embedding page's fallback base URL. Native #links
+        // can therefore load /plugin/GoAccess inside the opaque-origin iframe.
+        // Handle fragment-only links locally, including dynamically rendered menus.
+        // Do not stop propagation: GoAccess's own handlers (including toggles) run.
+        $navigation = <<<'HTML'
+<script>
+document.addEventListener('click', function (event) {
+    if (!(event.target instanceof Element)) return;
+    var link = event.target.closest('a[href]');
+    if (!link) return;
+    var href = link.getAttribute('href').trim();
+    if (href.charAt(0) !== '#') return;
+    event.preventDefault();
+    if (href === '#') {
+        window.scrollTo(0, 0);
+        return;
+    }
+    var id;
+    try { id = decodeURIComponent(href.slice(1)); } catch (error) { return; }
+    var target = document.getElementById(id) || document.getElementsByName(id)[0];
+    if (target) target.scrollIntoView({block: 'start'});
+}, true);
+</script>
+HTML;
+
         return '<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'
-            . htmlspecialchars($policy, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . $html;
+            . htmlspecialchars($policy, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . $navigation . $html;
     }
 }

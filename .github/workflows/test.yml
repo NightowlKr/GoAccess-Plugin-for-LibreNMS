@@ -35,6 +35,11 @@ jobs:
           repository: allinurl/goaccess
           ref: 0dda4e3cb0b3f38e43ec1f2e6dce18e2bbfb5956
           path: upstream-goaccess
+      - uses: actions/checkout@v4
+        with:
+          repository: allinurl/goaccess
+          ref: f79fb60df47b1c637174d61c67a207432698dce4
+          path: upstream-goaccess-1.9.4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -45,4 +50,6 @@ jobs:
       - name: GoAccess template rendering in sandbox
         env:
           NODE_PATH: ${{ runner.temp }}/goaccess-browser/node_modules
-        run: node tests/browser.cjs "$(command -v php)" upstream-goaccess/resources/js/hogan.min.js
+        run: |
+          node tests/browser.cjs "$(command -v php)" upstream-goaccess/resources/js/hogan.min.js upstream-goaccess/resources/tpls.html
+          node tests/browser.cjs "$(command -v php)" upstream-goaccess-1.9.4/resources/js/hogan.min.js upstream-goaccess-1.9.4/resources/tpls.html

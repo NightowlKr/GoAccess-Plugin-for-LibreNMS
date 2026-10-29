@@ -1,6 +1,8 @@
 # GoAccess Plugin for LibreNMS
 
-**v0.1.2** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+**v0.1.3** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+
+v0.1.3 fixes PANELS label links opening a login page inside the report. A `srcdoc` frame inherits its parent URL as the base for relative links, so native `#panel` navigation can reload the authenticated LibreNMS route inside the sandbox. Fragment-only links now scroll within the report without changing its URL. GoAccess toggle handlers continue to run normally; no additional iframe privileges are granted. Browser regression tests cover real menu templates and Hogan engines from GoAccess 1.9.4 and the newer pinned source.
 
 v0.1.2 fixes reports stuck at `No authentication provided.`: GoAccess displays this status before initializing its static dashboard. Its bundled Hogan template compiler uses `new Function()`, which requires CSP `unsafe-eval`. This is now allowed only in the report's sandboxed, opaque-origin iframe. Network connections and access to the parent LibreNMS page remain blocked. A real Chromium test compiles a template with the official GoAccess Hogan engine, verifies its rendered output, and checks parent DOM and network isolation.
 
@@ -36,7 +38,7 @@ Run on the LibreNMS server, adjusting the installation location if needed. These
 
 ```sh
 sudo install -d -o librenms -g librenms /opt/librenms-plugins
-sudo -u librenms git clone --branch v0.1.2 --depth 1 \
+sudo -u librenms git clone --branch v0.1.3 --depth 1 \
   https://github.com/NightowlKr/GoAccess-Plugin-for-LibreNMS.git \
   /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 ```
@@ -74,7 +76,7 @@ Keep generated reports in `/var/lib/goaccess` so releases can be replaced indepe
 ```sh
 cd /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 sudo -u librenms git fetch --tags origin
-sudo -u librenms git checkout --detach v0.1.2
+sudo -u librenms git checkout --detach v0.1.3
 ```
 
 Replace the tag with a reviewed newer release to update; check out the prior tag to roll back. Do not use a hard reset or clean command on a directory containing reports. Settings remain in LibreNMS's existing `plugins` table. Disable the plugin through Plugin Admin before uninstalling; remove only its symlink after confirming the target.
@@ -91,6 +93,8 @@ find GoAccess tests -name '*.php' -print0 | xargs -0 -n1 php -l
 The isolated harness uses real LibreNMS Hook classes and final `handle()` methods, Laravel Gate with role objects, Blade, the Plugin model, PluginManager, and an in-memory SQLite database. It checks role access, settings persistence, injected settings, invalid paths, oversized/empty files, HTML escaping and iframe policy. Linux also checks symlink target rejection. It does not modify the referenced checkout or connect to a production database.
 
 CI runs against the pinned upstream commit on PHP 8.2 and 8.4. It also runs `tests/browser.cjs` in Chromium using the Hogan engine from GoAccess commit `0dda4e3cb0b3f38e43ec1f2e6dce18e2bbfb5956`. This reproduces static template initialization inside the report iframe; it is not a complete GoAccess dashboard or production web-server test. Before production use, confirm on your server that guests are sent to login, ordinary users see no report, global-read users can view but not configure it, administrators can save paths, and your generated GoAccess charts render correctly.
+
+The browser checks also cover GoAccess 1.9.4 (`f79fb60df47b1c637174d61c67a207432698dce4`), using its real PANELS menu template to test toggle clicks, nested icon/label link clicks and the Overall `#` link. Fragment navigation must scroll inside the report without loading the LibreNMS login page; network connections and parent DOM access remain blocked. GWSocket connections are still outside the supported static-report feature set.
 
 ## License
 
