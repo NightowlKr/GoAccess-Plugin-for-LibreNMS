@@ -1,6 +1,8 @@
 # GoAccess Plugin for LibreNMS
 
-**v0.1.1** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+**v0.1.2** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+
+v0.1.2 fixes reports stuck at `No authentication provided.`: GoAccess displays this status before initializing its static dashboard. Its bundled Hogan template compiler uses `new Function()`, which requires CSP `unsafe-eval`. This is now allowed only in the report's sandboxed, opaque-origin iframe. Network connections and access to the parent LibreNMS page remain blocked. A real Chromium test compiles a template with the official GoAccess Hogan engine, verifies its rendered output, and checks parent DOM and network isolation.
 
 v0.1.1 fixes the `Missing view` fallback on settings and report pages: Hook authorization now injects `Illuminate\Contracts\Auth\Authenticatable`, as in ExamplePlugin, so Laravel supplies the signed-in user instead of constructing an empty `App\Models\User`. Regression tests now exercise authorization through the actual container and `PluginManager::call()`.
 
@@ -34,7 +36,7 @@ Run on the LibreNMS server, adjusting the installation location if needed. These
 
 ```sh
 sudo install -d -o librenms -g librenms /opt/librenms-plugins
-sudo -u librenms git clone --branch v0.1.1 --depth 1 \
+sudo -u librenms git clone --branch v0.1.2 --depth 1 \
   https://github.com/NightowlKr/GoAccess-Plugin-for-LibreNMS.git \
   /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 ```
@@ -60,7 +62,7 @@ The symlink may appear as an untracked item in the LibreNMS checkout. Do not add
 - Configuration is restricted by LibreNMS's `plugin.admin` policy. Reports contain potentially sensitive traffic details, so ordinary per-device users are denied; access requires `global-read` or administrator privileges.
 - No unauthenticated PHP endpoint, static report URL, or public asset route is installed. Keep reports outside the web server's public document root and do not create an nginx/Apache alias exposing them.
 - Only administrator-configured `.html`/`.htm` files are accepted. Traversal segments, control characters, backslashes, URL/stream wrappers and non-HTML symlink targets are rejected. Checks are repeated on every view, and reads are bounded to 20 MiB.
-- The iframe cannot access LibreNMS cookies, DOM, or browser storage. CSP blocks network assets, fetch/WebSocket connections, nested frames, objects, forms, and base URLs. Inline report scripts and styles are allowed so GoAccess charts work.
+- The iframe cannot access LibreNMS cookies, DOM, or browser storage. CSP blocks network assets, fetch/WebSocket connections, nested frames, objects, forms, and base URLs. Inline report scripts/styles and dynamic JavaScript compilation (`unsafe-eval`, required by GoAccess's Hogan engine) are allowed inside this isolated frame. LibreNMS's parent-page CSP is not modified. A stricter CSP imposed by your reverse proxy may still block report initialization; check the browser console in that case.
 - This is isolation, **not HTML sanitization**. Only configure trusted GoAccess output in directories writable by trusted operators. Sandbox/CSP does not guarantee that hostile content cannot navigate its own frame. Do not point it at arbitrary uploaded HTML. No filesystem allowlist is imposed beyond the administrator-selected path.
 - Symlinked plugin directories are supported. Protect the report's directories from untrusted writers; validation does not eliminate all filesystem race conditions against a local attacker who can replace directories.
 - Write reports atomically (temporary file then rename) to avoid readers seeing partially written output. Report refresh is manual. Downloads, popups, forms and external fonts/assets may be unavailable due to sandbox restrictions.
@@ -72,7 +74,7 @@ Keep generated reports in `/var/lib/goaccess` so releases can be replaced indepe
 ```sh
 cd /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 sudo -u librenms git fetch --tags origin
-sudo -u librenms git checkout --detach v0.1.1
+sudo -u librenms git checkout --detach v0.1.2
 ```
 
 Replace the tag with a reviewed newer release to update; check out the prior tag to roll back. Do not use a hard reset or clean command on a directory containing reports. Settings remain in LibreNMS's existing `plugins` table. Disable the plugin through Plugin Admin before uninstalling; remove only its symlink after confirming the target.
@@ -88,7 +90,7 @@ find GoAccess tests -name '*.php' -print0 | xargs -0 -n1 php -l
 
 The isolated harness uses real LibreNMS Hook classes and final `handle()` methods, Laravel Gate with role objects, Blade, the Plugin model, PluginManager, and an in-memory SQLite database. It checks role access, settings persistence, injected settings, invalid paths, oversized/empty files, HTML escaping and iframe policy. Linux also checks symlink target rejection. It does not modify the referenced checkout or connect to a production database.
 
-CI runs against the pinned upstream commit on PHP 8.2 and 8.4. These checks are not a full web-server or browser end-to-end test. Before production use, confirm on your server that guests are sent to login, ordinary users see no report, global-read users can view but not configure it, administrators can save paths, and your generated GoAccess charts render correctly.
+CI runs against the pinned upstream commit on PHP 8.2 and 8.4. It also runs `tests/browser.cjs` in Chromium using the Hogan engine from GoAccess commit `0dda4e3cb0b3f38e43ec1f2e6dce18e2bbfb5956`. This reproduces static template initialization inside the report iframe; it is not a complete GoAccess dashboard or production web-server test. Before production use, confirm on your server that guests are sent to login, ordinary users see no report, global-read users can view but not configure it, administrators can save paths, and your generated GoAccess charts render correctly.
 
 ## License
 

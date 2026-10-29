@@ -30,3 +30,19 @@ jobs:
         run: find GoAccess tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Real Hook and security checks
         run: php tests/run.php "$GITHUB_WORKSPACE/upstream"
+      - uses: actions/checkout@v4
+        with:
+          repository: allinurl/goaccess
+          ref: 0dda4e3cb0b3f38e43ec1f2e6dce18e2bbfb5956
+          path: upstream-goaccess
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/goaccess-browser" --no-save --ignore-scripts playwright@1.62.1
+          node "$RUNNER_TEMP/goaccess-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: GoAccess template rendering in sandbox
+        env:
+          NODE_PATH: ${{ runner.temp }}/goaccess-browser/node_modules
+        run: node tests/browser.cjs "$(command -v php)" upstream-goaccess/resources/js/hogan.min.js

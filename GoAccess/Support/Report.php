@@ -53,8 +53,9 @@ final class Report
         }
 
         // The policy precedes all report bytes. No same-origin privilege is granted
-        // by the enclosing iframe. GoAccess static reports need inline JS/CSS.
-        $policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+        // by the enclosing iframe. GoAccess's Hogan compiler uses new Function(),
+        // which needs unsafe-eval within this opaque-origin frame only.
+        $policy = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; "
             . "img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; "
             . "object-src 'none'; base-uri 'none'; form-action 'none'";
 
