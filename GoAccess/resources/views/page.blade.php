@@ -4,7 +4,7 @@
         @if ($reportError)
             <div class="alert alert-warning" role="alert">{{ $reportError }}</div>
         @elseif ($report !== null)
-            <iframe title="GoAccess HTML report" sandbox="allow-scripts" referrerpolicy="no-referrer"
+            <iframe title="GoAccess HTML report" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer"
                     srcdoc="{{ $report }}" style="width:100%;height:80vh;border:0;"></iframe>
         @endif
     </div>

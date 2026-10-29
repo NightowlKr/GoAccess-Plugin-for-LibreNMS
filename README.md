@@ -1,6 +1,8 @@
 # GoAccess Plugin for LibreNMS
 
-**v0.1.3** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+**v0.1.4** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+
+v0.1.4 enables **Settings → File Options → Export as JSON** by adding `allow-downloads` to the report iframe. GoAccess's original export code creates a local `data:` download; it does not call a server endpoint. Browser tests execute the real `downloadJSON()` method from GoAccess 1.9.4 and the newer pinned source, then verify the downloaded filename and parsed JSON contents. Parent DOM access and network requests remain blocked.
 
 v0.1.3 fixes PANELS label links opening a login page inside the report. A `srcdoc` frame inherits its parent URL as the base for relative links, so native `#panel` navigation can reload the authenticated LibreNMS route inside the sandbox. Fragment-only links now scroll within the report without changing its URL. GoAccess toggle handlers continue to run normally; no additional iframe privileges are granted. Browser regression tests cover real menu templates and Hogan engines from GoAccess 1.9.4 and the newer pinned source.
 
@@ -14,7 +16,7 @@ v0.1.1 fixes the `Missing view` fallback on settings and report pages: Hook auth
 - **Plugins → Plugin Admin → GoAccess Settings**: administrator-only HTML path configuration using LibreNMS's existing plugin settings database.
 - Default: `/opt/librenms/app/Plugins/GoAccess/nginx-access.html`.
 - Absolute Linux path validation, canonical target validation, readable regular HTML files only, and a 20 MiB read limit.
-- HTML runs in an escaped `srcdoc` iframe with `sandbox="allow-scripts"`, without same-origin access. A restrictive CSP is inserted before the report content.
+- HTML runs in an escaped `srcdoc` iframe with `sandbox="allow-scripts allow-downloads"`, without same-origin access. A restrictive CSP is inserted before the report content.
 
 ## Requirements and compatibility
 
@@ -38,7 +40,7 @@ Run on the LibreNMS server, adjusting the installation location if needed. These
 
 ```sh
 sudo install -d -o librenms -g librenms /opt/librenms-plugins
-sudo -u librenms git clone --branch v0.1.3 --depth 1 \
+sudo -u librenms git clone --branch v0.1.4 --depth 1 \
   https://github.com/NightowlKr/GoAccess-Plugin-for-LibreNMS.git \
   /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 ```
@@ -67,7 +69,7 @@ The symlink may appear as an untracked item in the LibreNMS checkout. Do not add
 - The iframe cannot access LibreNMS cookies, DOM, or browser storage. CSP blocks network assets, fetch/WebSocket connections, nested frames, objects, forms, and base URLs. Inline report scripts/styles and dynamic JavaScript compilation (`unsafe-eval`, required by GoAccess's Hogan engine) are allowed inside this isolated frame. LibreNMS's parent-page CSP is not modified. A stricter CSP imposed by your reverse proxy may still block report initialization; check the browser console in that case.
 - This is isolation, **not HTML sanitization**. Only configure trusted GoAccess output in directories writable by trusted operators. Sandbox/CSP does not guarantee that hostile content cannot navigate its own frame. Do not point it at arbitrary uploaded HTML. No filesystem allowlist is imposed beyond the administrator-selected path.
 - Symlinked plugin directories are supported. Protect the report's directories from untrusted writers; validation does not eliminate all filesystem race conditions against a local attacker who can replace directories.
-- Write reports atomically (temporary file then rename) to avoid readers seeing partially written output. Report refresh is manual. Downloads, popups, forms and external fonts/assets may be unavailable due to sandbox restrictions.
+- Write reports atomically (temporary file then rename) to avoid readers seeing partially written output. Report refresh is manual. Export as JSON downloads the report's panel data to the signed-in user's computer. Browser download policies can still affect saving. Popups, forms and external fonts/assets remain restricted.
 
 ## Update and rollback
 
@@ -76,7 +78,7 @@ Keep generated reports in `/var/lib/goaccess` so releases can be replaced indepe
 ```sh
 cd /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 sudo -u librenms git fetch --tags origin
-sudo -u librenms git checkout --detach v0.1.3
+sudo -u librenms git checkout --detach v0.1.4
 ```
 
 Replace the tag with a reviewed newer release to update; check out the prior tag to roll back. Do not use a hard reset or clean command on a directory containing reports. Settings remain in LibreNMS's existing `plugins` table. Disable the plugin through Plugin Admin before uninstalling; remove only its symlink after confirming the target.
@@ -95,6 +97,8 @@ The isolated harness uses real LibreNMS Hook classes and final `handle()` method
 CI runs against the pinned upstream commit on PHP 8.2 and 8.4. It also runs `tests/browser.cjs` in Chromium using the Hogan engine from GoAccess commit `0dda4e3cb0b3f38e43ec1f2e6dce18e2bbfb5956`. This reproduces static template initialization inside the report iframe; it is not a complete GoAccess dashboard or production web-server test. Before production use, confirm on your server that guests are sent to login, ordinary users see no report, global-read users can view but not configure it, administrators can save paths, and your generated GoAccess charts render correctly.
 
 The browser checks also cover GoAccess 1.9.4 (`f79fb60df47b1c637174d61c67a207432698dce4`), using its real PANELS menu template to test toggle clicks, nested icon/label link clicks and the Overall `#` link. Fragment navigation must scroll inside the report without loading the LibreNMS login page; network connections and parent DOM access remain blocked. GWSocket connections are still outside the supported static-report feature set.
+
+For JSON export, the browser test reads the sandbox attribute from the production Blade view and runs each upstream version's actual export function and link template against synthetic panel data. It must observe a `goaccess-<timestamp>.json` download containing the expected JSON. Run browser checks in an environment that permits the test browser to write temporary downloads.
 
 ## License
 

@@ -1,5 +1,5 @@
 // Browser regression using the actual Hogan engine bundled by GoAccess.
-// Usage: node tests/browser.cjs /path/to/php /path/to/goaccess/resources/js/hogan.min.js /path/to/goaccess/resources/tpls.html
+// Usage: node tests/browser.cjs /path/to/php /path/to/goaccess/resources/js/hogan.min.js /path/to/goaccess/resources/tpls.html /path/to/goaccess/resources/js/app.js
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -14,14 +14,23 @@ const { chromium } = require('playwright');
         const hogan = fs.readFileSync(process.argv[3], 'utf8');
         const templates = fs.readFileSync(process.argv[4], 'utf8');
         const menuTemplate = templates.match(/<script id="tpl-nav-menu" type="text\/template">([\s\S]*?)<\/script>/)[1];
+        const exportTemplate = templates.match(/<a[^>]*class="export-json"[\s\S]*?<\/a>/)[0];
+        const appSource = fs.readFileSync(process.argv[5], 'utf8');
+        const exportBody = appSource.match(/downloadJSON:\s*function\s*\(e\)\s*{([\s\S]*?)\n\s*},/)[1];
+        const exportData = {requests: {data: [{data: '/index.html', hits: 3}]}, general: {total_requests: 3}};
+        const iframeSandbox = fs.readFileSync(path.resolve(__dirname, '../GoAccess/resources/views/page.blade.php'), 'utf8').match(/sandbox="([^"]+)"/)[1];
         fs.writeFileSync(fixture, `<style>.toggle-panel, nav i { display:inline-block; width:18px; height:18px; }</style><p id="status">No authentication provided.</p>
 <nav style="position:fixed;top:0;right:0;background:white;z-index:2"></nav>
+<div id="settings"></div>
 <section id="requests" style="margin-top:2000px;height:100px">Requests panel</section>
 <script>${hogan}</script>
 <script>
 document.getElementById('status').textContent = Hogan.compile('Traffic: {{count}}').render({count: 42});
 document.querySelector('nav').innerHTML = Hogan.compile(${JSON.stringify(menuTemplate)}).render({labels:{panels:'PANELS',thead:'Overall',toggle_panel:'Toggle panel'},nav:[{key:'requests',head:'Requests',icon:'file'}]});
 document.querySelector('.toggle-panel[data-panel="requests"]').onclick = function(event) { event.stopPropagation(); this.classList.toggle('active'); };
+document.querySelector('#settings').innerHTML = Hogan.compile(${JSON.stringify(exportTemplate)}).render({labels:{export_json:'Export as JSON'}});
+window.GoAccess = {getPanelData: function () { return ${JSON.stringify(exportData)}; }};
+document.querySelector('.export-json').onclick = function (e) { ${exportBody} };
 try { parent.document.body.dataset.reportEscaped = 'yes'; } catch (error) {}
 </script>`);
         const linuxPath = fixture.replaceAll('\\', '/').replace(/^[A-Za-z]:/, '');
@@ -32,13 +41,15 @@ try { parent.document.body.dataset.reportEscaped = 'yes'; } catch (error) {}
         const page = await browser.newPage();
         page.setDefaultTimeout(5000);
         const errors = [];
+        const consoleMessages = [];
+        page.on('console', message => consoleMessages.push(message.text()));
         const requests = [];
         page.on('pageerror', error => errors.push(error.message));
         const escaped = report.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
         const hostUrl = 'https://librenms.test/plugin/GoAccess';
         await page.route('**/*', route => {
             if (route.request().frame() === page.mainFrame() && route.request().url() === hostUrl) {
-                return route.fulfill({contentType:'text/html',body:`<iframe style="width:100%;height:400px" sandbox="allow-scripts" srcdoc="${escaped}"></iframe>`});
+                return route.fulfill({contentType:'text/html',body:`<iframe style="width:100%;height:400px" sandbox="${iframeSandbox}" srcdoc="${escaped}"></iframe>`});
             }
             requests.push(route.request().url());
             return route.abort();
@@ -53,7 +64,7 @@ try { parent.document.body.dataset.reportEscaped = 'yes'; } catch (error) {}
         if (await page.evaluate(() => document.body.dataset.reportEscaped)) {
             throw Error('Report escaped its sandbox');
         }
-        if (await page.locator('iframe').getAttribute('sandbox') !== 'allow-scripts') {
+        if (iframeSandbox.split(/\s+/).some(token => !['allow-scripts', 'allow-downloads'].includes(token))) {
             throw Error('Unexpected sandbox privileges');
         }
         await frame.locator('.toggle-panel[data-panel="requests"]').click();
@@ -67,6 +78,14 @@ try { parent.document.body.dataset.reportEscaped = 'yes'; } catch (error) {}
         await frame.locator('a[href="#"]').click();
         const scrollTop = await frame.locator('body').evaluate(() => window.scrollY);
         if (scrollTop !== 0 || requests.length || page.url() !== hostUrl) throw Error('Overall link did not stay within report');
+        const downloadPromise = page.waitForEvent('download', {timeout: 3000}).catch(() => null);
+        await frame.locator('.export-json').click();
+        const download = await downloadPromise;
+        if (!download) throw Error(`No download: ${await frame.locator('.export-json').evaluate(element => element.outerHTML)}; sandbox=${iframeSandbox}; console=${consoleMessages.join('; ')}; errors=${errors.join('; ')}`);
+        if (!/^goaccess-\d+\.json$/.test(download.suggestedFilename())) throw Error('Unexpected JSON filename');
+        const downloadedData = JSON.parse(fs.readFileSync(await download.path(), 'utf8'));
+        if (JSON.stringify(downloadedData) !== JSON.stringify(exportData)) throw Error('Exported JSON does not match report data');
+        if (requests.length || page.url() !== hostUrl) throw Error('JSON export navigated away from the report');
         const reportFrame = page.frames().find(frame => frame !== page.mainFrame());
         const blocked = await reportFrame.evaluate(async () => {
             try { await fetch('https://example.invalid/report-data'); return false; }
@@ -74,7 +93,7 @@ try { parent.document.body.dataset.reportEscaped = 'yes'; } catch (error) {}
         });
         if (!blocked || requests.length) throw Error('Report network request was not blocked by CSP');
         if (errors.length) throw Error(`Unexpected browser errors: ${errors.join('; ')}`);
-        console.log('PASS: GoAccess templates, panel toggles and fragment scrolling work; navigation, parent DOM and network remain isolated.');
+        console.log('PASS: GoAccess templates, panel navigation and JSON download work; parent DOM and network remain isolated.');
     } finally {
         if (browser) await browser.close();
         fs.rmSync(temporary, {recursive: true, force: true});

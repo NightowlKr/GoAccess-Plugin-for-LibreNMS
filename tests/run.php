@@ -123,7 +123,7 @@ try {
     ob_start();
     eval('?>' . $blade);
     $rendered = ob_get_clean();
-    check(str_contains($rendered, 'sandbox="allow-scripts"'), 'Sandbox enables only scripts');
+    check(str_contains($rendered, 'sandbox="allow-scripts allow-downloads"'), 'Sandbox enables scripts and report downloads');
     check(! str_contains($rendered, 'allow-same-origin'), 'Report cannot access parent origin');
     check(! str_contains($rendered, '<img'), 'Report cannot escape srcdoc attribute');
     check(str_contains($rendered, '&lt;img'), 'Blade escapes report HTML');

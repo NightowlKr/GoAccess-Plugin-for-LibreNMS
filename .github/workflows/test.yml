@@ -51,5 +51,5 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/goaccess-browser/node_modules
         run: |
-          node tests/browser.cjs "$(command -v php)" upstream-goaccess/resources/js/hogan.min.js upstream-goaccess/resources/tpls.html
-          node tests/browser.cjs "$(command -v php)" upstream-goaccess-1.9.4/resources/js/hogan.min.js upstream-goaccess-1.9.4/resources/tpls.html
+          node tests/browser.cjs "$(command -v php)" upstream-goaccess/resources/js/hogan.min.js upstream-goaccess/resources/tpls.html upstream-goaccess/resources/js/app.js
+          node tests/browser.cjs "$(command -v php)" upstream-goaccess-1.9.4/resources/js/hogan.min.js upstream-goaccess-1.9.4/resources/tpls.html upstream-goaccess-1.9.4/resources/js/app.js

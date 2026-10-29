@@ -1,5 +1,5 @@
 <div class="panel panel-default">
-    <div class="panel-heading">GoAccess Settings — v0.1.3</div>
+    <div class="panel-heading">GoAccess Settings — v0.1.4</div>
     <div class="panel-body">
         <form method="post" action="{{ route('plugin.update', ['plugin' => 'GoAccess']) }}">
             @csrf
