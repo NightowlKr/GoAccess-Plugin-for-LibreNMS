@@ -1,6 +1,8 @@
 # GoAccess Plugin for LibreNMS
 
-**v0.1.0** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+**v0.1.1** — a standalone LibreNMS Plugin v2 for displaying a private, static GoAccess HTML report inside LibreNMS. No LibreNMS core changes, database migrations, or fork branch changes are required.
+
+v0.1.1 fixes the `Missing view` fallback on settings and report pages: Hook authorization now injects `Illuminate\Contracts\Auth\Authenticatable`, as in ExamplePlugin, so Laravel supplies the signed-in user instead of constructing an empty `App\Models\User`. Regression tests now exercise authorization through the actual container and `PluginManager::call()`.
 
 ## Features
 
@@ -18,9 +20,9 @@ The implementation follows the real `ExamplePlugin` and Hook classes at official
 
 | Hook | Contract used |
 | --- | --- |
-| `MenuEntryHook` | `authorize(User $user): bool`, default menu view |
-| `PageHook` | `authorize(User $user): bool`, optional `data(array $settings = []): array` injected by final `handle()` |
-| `SettingsHook` | `authorize(User $user): bool`, `data(array $settings = []): array` |
+| `MenuEntryHook` | `authorize(Authenticatable $user): bool`, default menu view |
+| `PageHook` | `authorize(Authenticatable $user): bool`, optional `data(array $settings = []): array` injected by final `handle()` |
+| `SettingsHook` | `authorize(Authenticatable $user): bool`, `data(array $settings = []): array` |
 | `PluginProvider` | One Hook implementation per top-level PHP file; helper code is under `Support/` |
 | Plugin settings | `settings[report_path]`, `plugin.update` POST route, host CSRF and `plugin.admin` authorization |
 
@@ -32,7 +34,7 @@ Run on the LibreNMS server, adjusting the installation location if needed. These
 
 ```sh
 sudo install -d -o librenms -g librenms /opt/librenms-plugins
-sudo -u librenms git clone --branch v0.1.0 --depth 1 \
+sudo -u librenms git clone --branch v0.1.1 --depth 1 \
   https://github.com/NightowlKr/GoAccess-Plugin-for-LibreNMS.git \
   /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 ```
@@ -70,7 +72,7 @@ Keep generated reports in `/var/lib/goaccess` so releases can be replaced indepe
 ```sh
 cd /opt/librenms-plugins/GoAccess-Plugin-for-LibreNMS
 sudo -u librenms git fetch --tags origin
-sudo -u librenms git checkout --detach v0.1.0
+sudo -u librenms git checkout --detach v0.1.1
 ```
 
 Replace the tag with a reviewed newer release to update; check out the prior tag to roll back. Do not use a hard reset or clean command on a directory containing reports. Settings remain in LibreNMS's existing `plugins` table. Disable the plugin through Plugin Admin before uninstalling; remove only its symlink after confirming the target.

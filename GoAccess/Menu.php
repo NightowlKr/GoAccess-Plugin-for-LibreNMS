@@ -5,11 +5,12 @@ namespace App\Plugins\GoAccess;
 
 use App\Models\User;
 use App\Plugins\Hooks\MenuEntryHook;
+use Illuminate\Contracts\Auth\Authenticatable;
 
 class Menu extends MenuEntryHook
 {
-    public function authorize(User $user): bool
+    public function authorize(Authenticatable $user): bool
     {
-        return $user->exists && $user->can('global-read');
+        return $user instanceof User && $user->exists && $user->can('global-read');
     }
 }

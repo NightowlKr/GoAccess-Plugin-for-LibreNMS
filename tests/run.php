@@ -50,11 +50,13 @@ $app->instance('config', new \Illuminate\Config\Repository([
     'auth' => ['defaults' => ['guard' => 'web'], 'guards' => ['web' => ['driver' => 'session', 'provider' => 'users']], 'providers' => ['users' => ['driver' => 'eloquent', 'model' => User::class]]],
     'permission' => require $core . '/config/permission.php',
 ]));
+$app->register(\Illuminate\Auth\AuthServiceProvider::class);
 $auth = new class implements \Illuminate\Contracts\Auth\Factory {
     public ?User $current = null;
     public function guard($name = null) { return $this; }
     public function shouldUse($name) {}
     public function user() { return $this->current; }
+    public function userResolver() { return fn () => $this->current; }
 };
 $app->instance('auth', $auth);
 $gate = new \Illuminate\Auth\Access\Gate($app, fn () => $auth->current);
@@ -78,6 +80,9 @@ foreach (['admin' => true, 'global-read' => true, 'user' => false] as $role => $
     check($page->authorize($auth->current) === $allowed, "Page role $role");
     check($menu->authorize($auth->current) === $allowed, "Menu role $role");
     check($settings->authorize($auth->current) === ($role === 'admin'), "Settings role $role");
+    check($app->call([$settings, 'authorize']) === ($role === 'admin'), "Container resolves logged-in user for settings: $role");
+    check($app->call([$page, 'authorize']) === $allowed, "Container resolves logged-in user for page: $role");
+    check($app->call([$menu, 'authorize']) === $allowed, "Container resolves logged-in user for menu: $role");
 }
 $auth->current = null;
 check($page->data()['report'] === null, 'Guest direct invocation fails closed');
@@ -149,6 +154,20 @@ try {
         $interfaces = array_filter(class_implements($hook), fn ($i) => str_starts_with($i, 'LibreNMS\\Interfaces\\Plugins\\Hooks\\'));
         check(count($interfaces) === 1, 'Exactly one discoverable Hook per top-level class');
         check($manager->publishHook('GoAccess', array_values($interfaces)[0], $hook), 'Actual manager registers Hook');
+    }
+    foreach (['admin', 'global-read', 'user'] as $role) {
+        $auth->current = user($role);
+        $result = $manager->call(\LibreNMS\Interfaces\Plugins\Hooks\SettingsHook::class, [], 'GoAccess');
+        check(count($result) === ($role === 'admin' ? 1 : 0), "Actual manager settings dispatch for $role");
+        if ($role === 'admin') {
+            check($result[0]['content_view'] === 'GoAccess::resources.views.settings', 'Controller receives settings view instead of missing-view fallback');
+            check($result[0]['reportPath'] === $path, 'Settings dispatch includes stored path');
+        }
+        $result = $manager->call(\LibreNMS\Interfaces\Plugins\Hooks\SinglePageHook::class, [], 'GoAccess');
+        check(count($result) === ($role === 'user' ? 0 : 1), "Actual manager page dispatch for $role");
+        if ($role !== 'user') {
+            check(str_contains($result[0]['report'], 'Traffic'), 'Authorized manager dispatch returns report');
+        }
     }
 
     file_put_contents($file, '');

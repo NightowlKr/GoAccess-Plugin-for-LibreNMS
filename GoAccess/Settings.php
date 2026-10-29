@@ -6,12 +6,13 @@ namespace App\Plugins\GoAccess;
 use App\Models\User;
 use App\Plugins\GoAccess\Support\Report;
 use App\Plugins\Hooks\SettingsHook;
+use Illuminate\Contracts\Auth\Authenticatable;
 
 class Settings extends SettingsHook
 {
-    public function authorize(User $user): bool
+    public function authorize(Authenticatable $user): bool
     {
-        return $user->exists && $user->can('plugin.admin');
+        return $user instanceof User && $user->exists && $user->can('plugin.admin');
     }
 
     public function data(array $settings = []): array

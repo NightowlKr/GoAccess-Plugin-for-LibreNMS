@@ -6,12 +6,13 @@ namespace App\Plugins\GoAccess;
 use App\Models\User;
 use App\Plugins\GoAccess\Support\Report;
 use App\Plugins\Hooks\PageHook;
+use Illuminate\Contracts\Auth\Authenticatable;
 
 class Page extends PageHook
 {
-    public function authorize(User $user): bool
+    public function authorize(Authenticatable $user): bool
     {
-        return $user->exists && $user->can('global-read');
+        return $user instanceof User && $user->exists && $user->can('global-read');
     }
 
     public function data(array $settings = []): array
